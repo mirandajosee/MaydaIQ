@@ -130,9 +130,6 @@ Community memory stores only anonymized hazard labels, approximate location text
 | Reliability & Safety | Demo mode works offline; safety critic enforces escalation, privacy, and dangerous-instruction guardrails. |
 | Community Vote | Clear pitch: first 60 seconds, next 60 minutes, next 60 days. |
 
-## Competition Readiness
-
-The official rules require a working project, public GitHub repository, architecture diagram, and a demo video up to five minutes. The judging criteria place 20% weight on Accuracy & Relevance, 20% on Reasoning & Multi-step Thinking, 15% on Creativity & Originality, 15% on User Experience & Presentation, 20% on Reliability & Safety, and 10% on community vote. MaydaIQ is structured around those exact surfaces.
 
 ## Disclaimer
 
