@@ -22,7 +22,22 @@ INCIDENT_KEYWORDS: dict[str, set[str]] = {
     "fire_smoke": {"fire", "smoke", "burning", "flames", "evacuate", "inside building"},
     "flood": {"flood", "flooded", "water rising", "fast water", "storm surge", "standing water"},
     "traffic_accident": {"crash", "collision", "accident", "vehicle", "car", "road blocked", "injured"},
-    "personal_safety_robbery": {"robbery", "robbed", "threat", "weapon", "violence", "assault", "unsafe person"},
+    "personal_safety_robbery": {
+        "robbery",
+        "robbed",
+        "mugging",
+        "threat",
+        "weapon",
+        "gun",
+        "handgun",
+        "pistol",
+        "firearm",
+        "armed",
+        "knife",
+        "violence",
+        "assault",
+        "unsafe person",
+    },
     "electrical_hazard": {"wire", "downed line", "electricity", "electrical", "utility pole", "spark"},
     "environmental_water_quality": {
         "polluted",
@@ -86,6 +101,29 @@ PREPAREDNESS_KEYWORDS: set[str] = {
     "prevention",
 }
 
+PERSONAL_SAFETY_STRONG_KEYWORDS: set[str] = {
+    "robbery",
+    "robbed",
+    "mugging",
+    "assault",
+    "weapon",
+    "gun",
+    "handgun",
+    "pistol",
+    "firearm",
+    "armed",
+    "knife",
+    "threatening me",
+    "threating me",
+    "threaten me",
+    "he is threatening",
+    "she is threatening",
+    "they are threatening",
+    "he is threating",
+    "she is threating",
+    "they are threating",
+}
+
 
 def normalize_text(text: str) -> str:
     return " ".join(text.lower().strip().split())
@@ -95,6 +133,11 @@ def detect_incident_type(text: str, visual_signals: list[str] | None = None) -> 
     normalized = normalize_text(text)
     visual_signals = visual_signals or []
     scores: Counter[str] = Counter()
+
+    if "personal_safety_threat" in visual_signals:
+        return "personal_safety_robbery"
+    if any(keyword in normalized for keyword in PERSONAL_SAFETY_STRONG_KEYWORDS):
+        return "personal_safety_robbery"
 
     for signal in visual_signals:
         incident = VISUAL_TO_INCIDENT.get(signal)
@@ -177,4 +220,3 @@ def score_risk(text: str, visual_analysis: VisualAnalysis, requested_mode: str) 
     score = min(score, 100)
     confidence = confidence_for(text, incident_type, visual_analysis, urgency_signals)
     return score, incident_type, urgency_signals, confidence
-

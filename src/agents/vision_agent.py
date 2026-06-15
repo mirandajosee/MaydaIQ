@@ -13,7 +13,5 @@ class VisionAgent:
         return analyze_image(
             text=incident.text,
             image_bytes=image_bytes,
-            image_filename=incident.image_filename,
             sample_scenario=incident.sample_scenario,
         )
-

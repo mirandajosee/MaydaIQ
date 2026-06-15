@@ -47,10 +47,16 @@ class Settings:
     )
     azure_foundry_api_key: str = os.getenv("AZURE_FOUNDRY_API_KEY", os.getenv("AZURE_AI_PROJECT_API_KEY", ""))
     azure_foundry_auth_mode: str = os.getenv("AZURE_FOUNDRY_AUTH_MODE", "entra").strip().lower()
+    azure_foundry_token_scope: str = os.getenv("AZURE_FOUNDRY_TOKEN_SCOPE", "https://ai.azure.com/.default")
+    azure_foundry_allow_interactive_login: bool = _as_bool(
+        os.getenv("AZURE_FOUNDRY_ALLOW_INTERACTIVE_LOGIN"),
+        default=False,
+    )
 
     # From your Foundry agent setup: AZURE_FOUNDRY_AGENT_ID
     azure_foundry_agent_id: str = os.getenv("AZURE_FOUNDRY_AGENT_ID", os.getenv("AZURE_AI_AGENT_ID", ""))
     azure_foundry_agent_name: str = os.getenv("AZURE_FOUNDRY_AGENT_NAME", "")
+    azure_foundry_agent_version: str = os.getenv("AZURE_FOUNDRY_AGENT_VERSION", "")
 
     # From your Foundry IQ knowledge configuration: FOUNDRY_IQ_KNOWLEDGE_BASE_ID
     foundry_iq_knowledge_base_id: str = os.getenv("FOUNDRY_IQ_KNOWLEDGE_BASE_ID", "")
@@ -68,8 +74,10 @@ class Settings:
         "AZURE_OPENAI_VISION_DEPLOYMENT",
         os.getenv("AZURE_FOUNDRY_MODEL_DEPLOYMENT", ""),
     )
-    azure_openai_api_version: str = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
+    azure_openai_api_version: str = os.getenv("AZURE_OPENAI_API_VERSION", "2025-03-01-preview")
     emergency_contact_text: str = os.getenv("PUBLIC_EMERGENCY_CONTACT", "local emergency services")
+    public_response_entities: str = os.getenv("PUBLIC_RESPONSE_ENTITIES", "")
+    public_response_contacts: str = os.getenv("PUBLIC_RESPONSE_CONTACTS", "")
 
     demo_mode: bool = _as_bool(os.getenv("DEMO_MODE"), default=True)
     default_language: str = os.getenv("DEFAULT_LANGUAGE", "en")

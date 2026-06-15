@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import base64
+from io import BytesIO
 import json
 from pathlib import Path
 
 import streamlit as st
 
-from src.config import LOGO_PATH
+from src.config import LOGO_PATH, get_settings
 from src.orchestrator import run_incident
 from src.schemas import IncidentInput
 from src.tools.runtime_status import get_runtime_status
@@ -15,6 +17,21 @@ from src.tools.sample_incidents import get_sample_incident, list_sample_incident
 
 
 LOGO = Path(LOGO_PATH)
+SETTINGS = get_settings()
+LANGUAGE_OPTIONS = ["English", "Spanish", "French", "Japanese", "Russian"]
+LANGUAGE_ALIASES = {
+    "en": "English",
+    "english": "English",
+    "es": "Spanish",
+    "spanish": "Spanish",
+    "español": "Spanish",
+    "fr": "French",
+    "french": "French",
+    "ja": "Japanese",
+    "japanese": "Japanese",
+    "ru": "Russian",
+    "russian": "Russian",
+}
 
 st.set_page_config(page_title="MaydaIQ", page_icon=str(LOGO) if LOGO.exists() else "!", layout="wide")
 
@@ -22,6 +39,7 @@ st.markdown(
     """
     <style>
     :root {
+        color-scheme: light;
         --navy: #061b49;
         --navy-2: #0d2b67;
         --teal: #12b8b3;
@@ -37,6 +55,12 @@ st.markdown(
     .stApp, [data-testid="stAppViewContainer"] {
         background: #f4f8fb;
         color: var(--ink);
+        color-scheme: light;
+    }
+    html, body {
+        background: #f4f8fb !important;
+        color: var(--ink) !important;
+        color-scheme: light;
     }
     .block-container {
         padding-top: 1.2rem;
@@ -59,6 +83,24 @@ st.markdown(
     section[data-testid="stSidebar"] textarea,
     section[data-testid="stSidebar"] div[data-baseweb="select"] * {
         color: #13213b !important;
+    }
+    section[data-testid="stSidebar"] div[data-baseweb="select"] > div {
+        background: #ffffff !important;
+        border: 1px solid #bdd7ff !important;
+    }
+    div[data-baseweb="popover"],
+    div[data-baseweb="popover"] * {
+        background: #ffffff !important;
+        color: #13213b !important;
+    }
+    div[role="listbox"] li,
+    div[role="option"] {
+        background: #ffffff !important;
+        color: #13213b !important;
+    }
+    div[role="option"]:hover {
+        background: #e9fbfa !important;
+        color: #061b49 !important;
     }
     section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
     section[data-testid="stSidebar"] label,
@@ -147,8 +189,52 @@ st.markdown(
         font-size: 0.82rem;
         font-weight: 700;
     }
+    section[data-testid="stSidebar"] .chip {
+        color: var(--navy) !important;
+    }
+    section[data-testid="stSidebar"] .chip.live {
+        color: #054d49 !important;
+    }
+    section[data-testid="stSidebar"] .chip.local {
+        color: #80570e !important;
+    }
     .chip.live { border-color: rgba(18, 184, 179, 0.6); background: #e9fbfa; color: #086460; }
     .chip.local { border-color: #d7b16a; background: #fff7e8; color: #80570e; }
+    .logo-glow {
+        width: 118px;
+        height: 118px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0.2rem 0 1rem;
+        border-radius: 999px;
+        background:
+            radial-gradient(circle at 50% 50%, rgba(18, 184, 179, 0.28), rgba(18, 184, 179, 0.06) 44%, transparent 68%),
+            rgba(255, 255, 255, 0.04);
+        box-shadow:
+            0 0 0 1px rgba(255,255,255,0.12),
+            0 18px 46px rgba(18, 184, 179, 0.22);
+    }
+    .logo-glow.hero-logo {
+        width: 86px;
+        height: 86px;
+        margin: 0;
+        background:
+            radial-gradient(circle at 50% 50%, rgba(18, 184, 179, 0.32), rgba(18, 184, 179, 0.08) 46%, rgba(255,255,255,0.72) 69%),
+            #ffffff;
+        box-shadow:
+            0 0 0 1px rgba(6, 27, 73, 0.08),
+            0 16px 42px rgba(6, 27, 73, 0.14),
+            0 0 26px rgba(18, 184, 179, 0.3);
+    }
+    .logo-glow img {
+        width: 74%;
+        height: 74%;
+        object-fit: contain;
+        filter:
+            drop-shadow(0 0 10px rgba(18,184,179,0.78))
+            drop-shadow(0 7px 16px rgba(6,27,73,0.28));
+    }
     .mission-panel {
         border: 1px solid var(--line);
         border-radius: 8px;
@@ -205,6 +291,7 @@ st.markdown(
         background: white;
         padding: 0.85rem;
         min-height: 100%;
+        color: var(--ink);
     }
     .status-label {
         font-size: 0.76rem;
@@ -272,6 +359,23 @@ st.markdown(
         color: #101828 !important;
         font-weight: 750;
     }
+    .stChatMessage, [data-testid="stChatMessage"] {
+        background: transparent !important;
+        color: var(--ink) !important;
+    }
+    [data-testid="stJson"] {
+        background: #ffffff !important;
+        color: #13213b !important;
+    }
+    [data-testid="stJson"] * {
+        color: inherit;
+    }
+    @media (prefers-color-scheme: dark) {
+        .stApp, [data-testid="stAppViewContainer"], html, body {
+            background: #f4f8fb !important;
+            color: #13213b !important;
+        }
+    }
     @media (max-width: 900px) {
         .hero, .mission-grid, .sample-grid, .trace-row {
             grid-template-columns: 1fr;
@@ -323,15 +427,67 @@ def _source_label(playbook_source: str) -> str:
     return "Local knowledge pack"
 
 
+def _default_language() -> str:
+    return LANGUAGE_ALIASES.get(SETTINGS.default_language.strip().lower(), "English")
+
+
+def _logo_data_uri() -> str | None:
+    if not LOGO.exists():
+        return None
+    encoded = base64.b64encode(LOGO.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
+
+
+def _render_logo(class_name: str = "") -> None:
+    data_uri = _logo_data_uri()
+    if not data_uri:
+        return
+    st.markdown(
+        f'<div class="logo-glow {class_name}"><img src="{data_uri}" alt="MaydaIQ logo"></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _is_valid_image(image_bytes: bytes) -> bool:
+    try:
+        from PIL import Image
+
+        Image.open(BytesIO(image_bytes)).verify()
+        return True
+    except Exception:
+        return False
+
+
 def _assistant_message(result) -> str:
     risk = result.risk_assessment
     plan = result.action_plan
     packet = result.responder_packet
+    is_spanish = result.incident_input.language == "Spanish"
     lead = plan.do_now[0] if plan.do_now else plan.situation_summary
-    avoid = plan.avoid[0] if plan.avoid else "Avoid unsafe areas while details are uncertain."
-    escalation = plan.call_or_escalate[0] if plan.call_or_escalate else "No immediate emergency escalation was triggered by this report."
+    avoid = plan.avoid[0] if plan.avoid else (
+        "Evite zonas inseguras mientras los detalles sean inciertos."
+        if is_spanish
+        else "Avoid unsafe areas while details are uncertain."
+    )
+    escalation = plan.call_or_escalate[0] if plan.call_or_escalate else (
+        "Este reporte no activo una escalada de emergencia inmediata."
+        if is_spanish
+        else "No immediate emergency escalation was triggered by this report."
+    )
+    brief = plan.ai_brief or plan.situation_summary
+    if is_spanish:
+        return (
+            f"Clasifico esto como riesgo **{risk.risk_level}** en modo **{risk.selected_mode}** con confianza **{risk.confidence}**.\n\n"
+            f"**Resumen IA:** {brief}\n\n"
+            f"**Hacer ahora:** {lead}\n\n"
+            f"**Evitar:** {avoid}\n\n"
+            f"**Escalar:** {escalation}\n\n"
+            f"Escalamiento humano requerido: **{str(packet.human_escalation_required).lower()}**. "
+            "No contacte autoridades; este es un paquete simulado listo para respondedores."
+        )
     return (
         f"I classify this as **{risk.risk_level}** risk in **{risk.selected_mode}** mode with **{risk.confidence}** confidence.\n\n"
+        f"**AI brief:** {brief}\n\n"
         f"**Do now:** {lead}\n\n"
         f"**Avoid:** {avoid}\n\n"
         f"**Escalation:** {escalation}\n\n"
@@ -350,23 +506,29 @@ if "last_result" not in st.session_state:
     st.session_state["last_result"] = None
 if "last_source" not in st.session_state:
     st.session_state["last_source"] = None
+if "selected_language" not in st.session_state:
+    st.session_state["selected_language"] = _default_language()
+if "language_choice_v3" not in st.session_state:
+    st.session_state["language_choice_v3"] = st.session_state["selected_language"]
+if "chat_input_version" not in st.session_state:
+    st.session_state["chat_input_version"] = 0
 
 runtime_status = get_runtime_status()
 
 with st.sidebar:
-    if LOGO.exists():
-        st.image(str(LOGO), width=118)
+    _render_logo()
     st.header("Mission Control")
     st.caption("Reasoning Agents track")
     st.markdown(_runtime_chip(runtime_status), unsafe_allow_html=True)
-    st.markdown(f"<span class='chip'>Auth: {runtime_status['auth_mode']}</span>", unsafe_allow_html=True)
-    if runtime_status["missing_for_live"]:
-        st.caption("Live missing: " + ", ".join(runtime_status["missing_for_live"]))
     st.markdown("---")
     mode = st.radio("Mode", ["Auto", "Alert", "Calm"], horizontal=True)
-    language = st.selectbox("Language", ["English", "Spanish", "French", "Japanese", "Russian"])
+    language = st.radio(
+        "Language",
+        LANGUAGE_OPTIONS,
+        key="language_choice_v3",
+    )
+    st.session_state["selected_language"] = language
     location_text = st.text_input("Approximate location or context")
-    uploaded_file = st.file_uploader("Optional image upload", type=["jpg", "jpeg", "png"])
     st.markdown("---")
     st.subheader("Demo Scenarios")
     for key, label in list_sample_incidents():
@@ -390,8 +552,7 @@ if LOGO.exists():
 
 hero_cols = st.columns([0.09, 0.91])
 with hero_cols[0]:
-    if LOGO.exists():
-        st.image(str(LOGO), width="stretch")
+    _render_logo("hero-logo")
 with hero_cols[1]:
     st.markdown(
         f"""
@@ -441,6 +602,8 @@ st.caption("Use the message bar at the bottom. Press Enter to analyze a new repo
 if st.session_state["chat_history"]:
     for message in st.session_state["chat_history"][-8:]:
         with st.chat_message(message["role"]):
+            if message.get("image_bytes"):
+                st.image(message["image_bytes"], caption=message.get("image_name"), width=220)
             st.markdown(message["content"])
 else:
     with st.chat_message("assistant"):
@@ -473,26 +636,56 @@ with right:
             _set_sample(key)
             st.rerun()
 
-chat_prompt = st.chat_input("Message MaydaIQ. Press Enter to analyze.")
-submitted_text = chat_prompt or st.session_state.get("pending_prompt")
-if chat_prompt:
+chat_value = st.chat_input(
+    "Message MaydaIQ. Attach an image if needed.",
+    key=f"incident_chat_{st.session_state['chat_input_version']}",
+    accept_file=True,
+    file_type=["jpg", "jpeg", "png", "webp"],
+    max_upload_size=4,
+)
+chat_prompt = ""
+chat_files = []
+if isinstance(chat_value, str):
+    chat_prompt = chat_value
+elif chat_value:
+    chat_prompt = getattr(chat_value, "text", "")
+    chat_files = getattr(chat_value, "files", [])
+    if isinstance(chat_value, dict):
+        chat_prompt = chat_prompt or chat_value.get("text", "")
+        chat_files = chat_files or chat_value.get("files", [])
+
+submitted_text = chat_prompt if chat_value else st.session_state.get("pending_prompt")
+if chat_value:
     st.session_state["sample_scenario"] = None
 
-if submitted_text:
+if chat_value or submitted_text:
     st.session_state["pending_prompt"] = None
-    if not str(submitted_text).strip() and not st.session_state.get("sample_scenario") and not uploaded_file:
+    attached_file = chat_files[0] if chat_files else None
+    if len(chat_files) > 1:
+        st.warning("Use one image per message so the responder packet stays focused.")
+        st.stop()
+
+    image_bytes = attached_file.getvalue() if attached_file else None
+    image_filename = attached_file.name if attached_file else None
+    if attached_file and not image_bytes:
+        st.warning("The attached image could not be read. Please attach a JPG, PNG, or WebP image.")
+        st.stop()
+    if image_bytes and not _is_valid_image(image_bytes):
+        st.warning("The attachment is not a valid image. Please attach a JPG, PNG, or WebP image under 4MB.")
+        st.stop()
+
+    if not str(submitted_text).strip() and not st.session_state.get("sample_scenario") and not attached_file:
         st.warning("Add a report, choose a sample scenario, or upload an image.")
         st.stop()
 
-    image_bytes = uploaded_file.getvalue() if uploaded_file else None
     incident = IncidentInput(
         text=str(submitted_text).strip(),
         mode=mode,
         language=language,
         location_text=location_text.strip() or None,
-        image_filename=uploaded_file.name if uploaded_file else None,
+        image_filename=image_filename,
         sample_scenario=st.session_state.get("sample_scenario"),
-        image_bytes_present=bool(uploaded_file),
+        image_bytes_present=bool(attached_file),
     )
 
     with st.spinner("MaydaIQ agents are coordinating the incident packet..."):
@@ -503,10 +696,22 @@ if submitted_text:
     packet = result.responder_packet
     source = _source_label(result.retrieved_playbooks[0].source_id if result.retrieved_playbooks else "")
     assistant_reply = _assistant_message(result)
-    st.session_state["chat_history"].append({"role": "user", "content": str(submitted_text).strip()})
+    user_content = str(submitted_text).strip() or "Attached image"
+    st.session_state["chat_history"].append(
+        {
+            "role": "user",
+            "content": user_content,
+            "image_name": image_filename,
+            "image_bytes": image_bytes,
+        }
+    )
     st.session_state["chat_history"].append({"role": "assistant", "content": assistant_reply})
     st.session_state["last_result"] = result
     st.session_state["last_source"] = source
+
+    if chat_value:
+        st.session_state["chat_input_version"] += 1
+        st.rerun()
 
     st.markdown('<div class="section-title">MaydaIQ Reply</div>', unsafe_allow_html=True)
     with st.chat_message("assistant"):
@@ -550,6 +755,9 @@ if result:
     )
 
     with alert_tab:
+        if plan.ai_brief:
+            st.markdown("**AI brief**")
+            st.write(plan.ai_brief)
         alert_cols = st.columns(4)
         with alert_cols[0]:
             _render_list("Do now", plan.do_now)

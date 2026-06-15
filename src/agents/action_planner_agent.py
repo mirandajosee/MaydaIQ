@@ -2,19 +2,8 @@
 
 from __future__ import annotations
 
-from src.config import get_settings
 from src.schemas import ActionPlan, IncidentInput, RetrievedPlaybook, RiskAssessment, VisualAnalysis
-
-
-def escalation_text() -> str:
-    contact = get_settings().emergency_contact_text
-    return (
-        f"Contact {contact} now if there is life risk, fire, injury, violence, floodwater, electricity, "
-        "or any immediate danger."
-    )
-
-
-GENERIC_ESCALATION = escalation_text()
+from src.tools.response_resources import contact_guidance, escalation_text, recommended_entities
 
 
 PLAYBOOK_COPY: dict[str, dict[str, list[str] | str]] = {
@@ -90,17 +79,24 @@ class ActionPlannerAgent:
         copy = PLAYBOOK_COPY.get(risk.incident_type, PLAYBOOK_COPY["general_safety"])
         citations = [source_id for playbook in playbooks for source_id in playbook.citations]
         evidence = [f"{playbook.source_id}: {playbook.snippet}" for playbook in playbooks]
+        ai_brief = self._ai_brief(playbooks, str(copy["summary"]), risk, visual_analysis)
+        contacts = contact_guidance(risk.incident_type, incident.location_text)
         unknowns = list(risk.uncertainty_notes)
         if visual_analysis.limitations:
             unknowns.extend(visual_analysis.limitations[:2])
 
         if risk.selected_mode == "ALERT":
+            do_now = list(copy["do_now"])[:2]
+            if contacts:
+                do_now.insert(0, f"Call/contact now: {', '.join(contacts)}.")
             return ActionPlan(
                 selected_mode="ALERT",
+                ai_brief=ai_brief,
+                contact_recommendations=contacts,
                 situation_summary=str(copy["summary"]),
-                do_now=list(copy["do_now"])[:2],
+                do_now=do_now[:3],
                 avoid=list(copy["avoid"])[:1],
-                call_or_escalate=[escalation_text()],
+                call_or_escalate=[escalation_text(risk.incident_type, incident.location_text)],
                 report_summary=self._alert_report_summary(incident, risk, visual_analysis),
                 step_by_step_plan=[],
                 evidence=evidence[:2],
@@ -115,15 +111,17 @@ class ActionPlannerAgent:
             f"1. Stabilize safety first: {list(copy['do_now'])[0]}",
             f"2. Keep people away from risky actions: {list(copy['avoid'])[0]}",
             "3. Capture responder-ready facts: time, approximate location, visible hazards, affected access routes, and what is still unknown.",
-            "4. Use the cited playbooks to decide which local agency or community team should review the report.",
+            f"4. Route review to: {', '.join(recommended_entities(risk.incident_type)[:4])}.",
         ]
 
         return ActionPlan(
             selected_mode="CALM",
+            ai_brief=ai_brief,
+            contact_recommendations=contacts,
             situation_summary=str(copy["summary"]),
             do_now=list(copy["do_now"]),
             avoid=list(copy["avoid"]),
-            call_or_escalate=[escalation_text()] if risk.risk_level in {"HIGH", "CRITICAL"} else [],
+            call_or_escalate=[escalation_text(risk.incident_type, incident.location_text)] if risk.risk_level in {"HIGH", "CRITICAL"} else [],
             report_summary=self._calm_report_summary(incident, risk),
             step_by_step_plan=step_by_step_plan,
             evidence=evidence,
@@ -144,3 +142,38 @@ class ActionPlannerAgent:
     def _calm_report_summary(incident: IncidentInput, risk: RiskAssessment) -> str:
         location = incident.location_text or "location not provided"
         return f"Structured {risk.incident_type} planning report for {location}; risk score {risk.risk_score}/100."
+
+    @staticmethod
+    def _ai_brief(
+        playbooks: list[RetrievedPlaybook],
+        fallback: str,
+        risk: RiskAssessment,
+        visual_analysis: VisualAnalysis,
+    ) -> str:
+        if risk.incident_type == "personal_safety_robbery":
+            return (
+                "Possible active personal safety threat. Prioritize distance and escape to a safe, public, "
+                "well-lit place; do not confront or pursue anyone; contact emergency services or law enforcement when safe."
+            )
+
+        for playbook in playbooks:
+            if playbook.source_id.startswith("foundry") and playbook.snippet.strip():
+                snippet = " ".join(playbook.snippet.split())[:520]
+                if ActionPlannerAgent._brief_conflicts_with_triage(snippet, risk, visual_analysis):
+                    continue
+                return snippet
+        if playbooks and playbooks[0].snippet.strip():
+            return " ".join(playbooks[0].snippet.split())[:360]
+        return fallback
+
+    @staticmethod
+    def _brief_conflicts_with_triage(brief: str, risk: RiskAssessment, visual_analysis: VisualAnalysis) -> bool:
+        lowered = brief.lower()
+        mentions_fire = any(token in lowered for token in ("fire", "smoke", "incendio", "humo", "bombero"))
+        if risk.incident_type != "fire_smoke" and mentions_fire:
+            return True
+        if risk.incident_type == "personal_safety_robbery":
+            mentions_police = any(token in lowered for token in ("police", "law enforcement", "policia", "policía", "911"))
+            mentions_safety = any(token in lowered for token in ("distance", "escape", "safe", "alej", "segur"))
+            return not (mentions_police or mentions_safety)
+        return False

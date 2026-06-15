@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+from io import BytesIO
+from types import SimpleNamespace
 
 os.environ["DEMO_MODE"] = "true"
 
@@ -18,10 +20,11 @@ def _run(text: str, mode: str = "Auto", sample_scenario: str | None = None) -> M
 def _all_plan_text(result: MaydaIQResult) -> str:
     plan = result.action_plan
     parts = (
-        [plan.situation_summary, plan.report_summary]
+        [plan.ai_brief, plan.situation_summary, plan.report_summary]
         + plan.do_now
         + plan.avoid
         + plan.call_or_escalate
+        + plan.contact_recommendations
         + plan.step_by_step_plan
         + plan.next_steps
     )
@@ -108,3 +111,185 @@ def test_agent_trace_exists_and_is_concise() -> None:
     result = _run("Smoke near a building.", sample_scenario="fire_smoke")
     assert len(result.agent_trace) >= 7
     assert all(len(step.summary) <= 170 for step in result.agent_trace)
+
+
+def test_vague_text_with_fire_image_routes_to_fire_response() -> None:
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGB", (220, 160), (35, 35, 35))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((55, 55, 165, 145), fill=(230, 83, 28))
+    draw.polygon([(75, 145), (112, 25), (150, 145)], fill=(255, 182, 44))
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG")
+
+    result = run_incident(
+        IncidentInput(text="Help!", mode="Auto", image_bytes_present=True),
+        image_bytes=buffer.getvalue(),
+        persist_memory=False,
+    )
+
+    assert result.visual_analysis.image_used is True
+    assert "fire" in result.visual_analysis.visual_signals
+    assert result.risk_assessment.incident_type == "fire_smoke"
+    assert result.risk_assessment.selected_mode == "ALERT"
+
+
+def test_contextual_contacts_appear_in_first_immediate_action() -> None:
+    result = run_incident(
+        IncidentInput(
+            text="A car crash has an injured person and blocked traffic.",
+            mode="Auto",
+            language="Spanish",
+            location_text="Cordoba, cerca del Buen Pastor",
+        ),
+        persist_memory=False,
+    )
+
+    first_action = result.action_plan.do_now[0]
+    assert "911" in first_action
+    assert "107" in first_action
+    assert result.action_plan.contact_recommendations
+    assert result.risk_assessment.incident_type == "traffic_accident"
+
+
+def test_live_vision_scene_summary_routes_personal_safety_without_filename(monkeypatch) -> None:
+    from PIL import Image
+
+    from src.schemas import VisualAnalysis
+    from src.tools import image_analysis
+
+    image = Image.new("RGB", (80, 80), (210, 210, 210))
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG")
+
+    monkeypatch.setattr(
+        image_analysis,
+        "get_settings",
+        lambda: SimpleNamespace(
+            live_foundry_enabled=True,
+            azure_foundry_model_deployment="gpt-4o",
+            demo_mode=False,
+            azure_openai_vision_configured=False,
+            azure_vision_configured=False,
+        ),
+    )
+    monkeypatch.setattr(
+        image_analysis,
+        "_foundry_multimodal_analysis",
+        lambda *_args, **_kwargs: VisualAnalysis(
+            image_used=True,
+            scene_summary="The image shows an apparent robbery or mugging threat.",
+            visual_signals=[],
+            limitations=[],
+        ),
+    )
+
+    result = image_analysis.analyze_image(
+        text="This is happening! I do not know what to do!",
+        image_bytes=buffer.getvalue(),
+    )
+
+    assert "personal_safety_threat" in result.visual_signals
+
+
+def test_live_vision_does_not_classify_without_ai_scene_context(monkeypatch) -> None:
+    from PIL import Image
+
+    from src.schemas import VisualAnalysis
+    from src.tools import image_analysis
+
+    image = Image.new("RGB", (80, 80), (210, 210, 210))
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG")
+
+    monkeypatch.setattr(
+        image_analysis,
+        "get_settings",
+        lambda: SimpleNamespace(
+            live_foundry_enabled=True,
+            azure_foundry_model_deployment="gpt-4o",
+            demo_mode=False,
+            azure_openai_vision_configured=False,
+            azure_vision_configured=False,
+        ),
+    )
+    monkeypatch.setattr(
+        image_analysis,
+        "_foundry_multimodal_analysis",
+        lambda *_args, **_kwargs: VisualAnalysis(image_used=True, visual_signals=[], limitations=[]),
+    )
+
+    result = image_analysis.analyze_image(
+        text="What can I do?",
+        image_bytes=buffer.getvalue(),
+    )
+
+    assert "personal_safety_threat" not in result.visual_signals
+
+
+def test_visual_filter_removes_unsubstantiated_fire_smoke_from_robbery_scene(monkeypatch) -> None:
+    from PIL import Image
+
+    from src.schemas import VisualAnalysis
+    from src.tools import image_analysis
+
+    image = Image.new("RGB", (100, 100), (205, 205, 205))
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG")
+
+    monkeypatch.setattr(
+        image_analysis,
+        "get_settings",
+        lambda: SimpleNamespace(
+            live_foundry_enabled=True,
+            azure_foundry_model_deployment="gpt-4o",
+            demo_mode=False,
+            azure_openai_vision_configured=False,
+            azure_vision_configured=False,
+        ),
+    )
+    monkeypatch.setattr(
+        image_analysis,
+        "_foundry_multimodal_analysis",
+        lambda *_args, **_kwargs: VisualAnalysis(
+            image_used=True,
+            scene_summary="The image shows an apparent armed robbery on a motorcycle and mentions nearby smoke.",
+            visual_signals=["personal_safety_threat", "fire", "smoke"],
+            limitations=[],
+        ),
+    )
+
+    visual = image_analysis.analyze_image(
+        text="What should I do?",
+        image_bytes=buffer.getvalue(),
+    )
+    result = run_incident(
+        IncidentInput(
+            text="What should I do? he is threating me!!!",
+            mode="Auto",
+            location_text="Denver, Colorado. Im on vacation",
+            image_bytes_present=True,
+        ),
+        image_bytes=buffer.getvalue(),
+        persist_memory=False,
+    )
+
+    assert visual.visual_signals == ["personal_safety_threat"]
+    assert result.risk_assessment.incident_type == "personal_safety_robbery"
+    assert result.risk_assessment.selected_mode == "ALERT"
+    assert result.action_plan.do_now[0].startswith("Call/contact now: Police / emergency services: 911")
+    assert "law enforcement" in result.responder_packet.recommended_resources
+    assert "fire service" not in result.responder_packet.recommended_resources
+    assert "fire" not in result.action_plan.ai_brief.lower()
+    assert "smoke" not in result.action_plan.ai_brief.lower()
+
+
+def test_model_string_limitations_do_not_become_character_unknowns() -> None:
+    from src.tools.image_analysis import _json_from_model_text
+
+    _signals, _summary, limitations, _findings = _json_from_model_text(
+        '{"visual_signals": "personal_safety_threat", "limitations": "Treat this as one limitation."}'
+    )
+
+    assert limitations == ["Treat this as one limitation."]

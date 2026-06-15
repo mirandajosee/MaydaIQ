@@ -32,19 +32,38 @@ def _build_credential(settings):
 
     return DefaultAzureCredential(
         exclude_environment_credential=True,
-        exclude_interactive_browser_credential=True,
+        exclude_interactive_browser_credential=not settings.azure_foundry_allow_interactive_login,
     )
 
 
-def _live_prompt(query: str, incident_type: str, max_results: int) -> str:
+def _live_prompt(
+    query: str,
+    incident_type: str,
+    max_results: int,
+    target_language: str = "English",
+    location_text: str | None = None,
+    response_entities: list[str] | None = None,
+    response_contacts: list[str] | None = None,
+) -> str:
+    settings = get_settings()
+    location = location_text or "not provided"
+    entities = ", ".join(response_entities or []) or "relevant local emergency, public works, utility, health, or environmental agencies"
+    contacts = ", ".join(response_contacts or []) or settings.emergency_contact_text
     return (
         "You are the MaydaIQ Foundry grounding agent. Use only your configured knowledge documents "
         "and attached retrieval tools for crisis response grounding. Do not reveal chain-of-thought. "
         "Do not identify people, faces, suspects, or license plates. Do not claim to contact authorities. "
-        "Return concise, citation-ready playbook guidance with practical safety actions, avoid-list guidance, "
-        "uncertainty notes, and source labels when available.\n\n"
+        "Return a concise responder-ready answer in the target language. Include: a 1-2 sentence AI brief, "
+        "immediate safe actions, avoid-list guidance, uncertainty notes, and source labels when available. "
+        "If location/context is provided, include explicit contact to the local police, fire, or medical services if the situation seems life-threatening, time-sensitive or necessary. If not"
+        "explicitly in the escalation/contact guidance, just having the location should be enough. If location or context is not clear enough, say to use local emergency services "
+        "and the relevant public agency. Never invent exact phone numbers or agency names not present in context, but always try to provide it if possible.\n\n"
+        f"Target language: {target_language}\n"
         f"Incident type: {incident_type}\n"
         f"Max snippets: {max_results}\n"
+        f"Approximate location/context: {location}\n"
+        f"Verified/configured emergency contacts for this context: {contacts}\n"
+        f"Potential collaborator entities: {entities}\n"
         f"Report and visual hazard query: {query}"
     )
 
@@ -123,11 +142,47 @@ def _resolve_agent_name(project_client, settings) -> str:
     return configured
 
 
-def _retrieve_with_classic_agent_id(query: str, incident_type: str, max_results: int) -> list[RetrievedPlaybook]:
+def _agent_reference(settings, project_client=None) -> dict[str, str]:
+    name = settings.azure_foundry_agent_name or settings.azure_foundry_agent_id
+    if project_client is not None and not settings.azure_foundry_agent_name:
+        name = _resolve_agent_name(project_client, settings)
+
+    reference = {
+        "name": name,
+        "type": "agent_reference",
+    }
+    if settings.azure_foundry_agent_version:
+        reference["version"] = settings.azure_foundry_agent_version
+    return reference
+
+
+def _response_model(settings) -> str:
+    if not settings.azure_foundry_model_deployment:
+        raise RuntimeError("Missing AZURE_FOUNDRY_MODEL_DEPLOYMENT; Foundry Responses API requires model deployment.")
+    return settings.azure_foundry_model_deployment
+
+
+def _retrieve_with_classic_agent_id(
+    query: str,
+    incident_type: str,
+    max_results: int,
+    target_language: str,
+    location_text: str | None,
+    response_entities: list[str] | None,
+    response_contacts: list[str] | None,
+) -> list[RetrievedPlaybook]:
     settings = get_settings()
     from azure.ai.projects import AIProjectClient
 
-    prompt = _live_prompt(query, incident_type, max_results)
+    prompt = _live_prompt(
+        query,
+        incident_type,
+        max_results,
+        target_language,
+        location_text,
+        response_entities,
+        response_contacts,
+    )
     messages = []
     credential = _build_credential(settings)
     try:
@@ -160,32 +215,57 @@ def _retrieve_with_classic_agent_id(query: str, incident_type: str, max_results:
     return _as_playbook(assistant_text, incident_type, settings)[:max_results]
 
 
-def _retrieve_with_agent_name_responses(query: str, incident_type: str, max_results: int) -> list[RetrievedPlaybook]:
+def _retrieve_with_agent_name_responses(
+    query: str,
+    incident_type: str,
+    max_results: int,
+    target_language: str,
+    location_text: str | None,
+    response_entities: list[str] | None,
+    response_contacts: list[str] | None,
+) -> list[RetrievedPlaybook]:
     settings = get_settings()
     from azure.ai.projects import AIProjectClient
+    from azure.identity import get_bearer_token_provider
+    from openai import OpenAI
 
-    prompt = _live_prompt(query, incident_type, max_results)
+    prompt = _live_prompt(
+        query,
+        incident_type,
+        max_results,
+        target_language,
+        location_text,
+        response_entities,
+        response_contacts,
+    )
 
     if settings.foundry_uses_api_key:
-        return _retrieve_with_agent_name_api_key(query, incident_type, max_results)
+        return _retrieve_with_agent_name_api_key(
+            query,
+            incident_type,
+            max_results,
+            target_language,
+            location_text,
+            response_entities,
+            response_contacts,
+        )
 
     credential = _build_credential(settings)
     try:
         with AIProjectClient(endpoint=settings.azure_foundry_project_endpoint, credential=credential) as project_client:
-            agent_name = _resolve_agent_name(project_client, settings)
-            with project_client.get_openai_client() as openai_client:
-                conversation = openai_client.conversations.create(
-                    items=[{"type": "message", "role": "user", "content": prompt}]
-                )
-                response = openai_client.responses.create(
-                    conversation=conversation.id,
-                    extra_body={
-                        "agent_reference": {
-                            "name": agent_name,
-                            "type": "agent_reference",
-                        }
-                    },
-                )
+            token_provider = get_bearer_token_provider(
+                credential,
+                settings.azure_foundry_token_scope,
+            )
+            openai_client = OpenAI(
+                base_url=_project_openai_base_url(settings.azure_foundry_project_endpoint),
+                api_key=token_provider,
+            )
+            response = openai_client.responses.create(
+                model=_response_model(settings),
+                input=[{"role": "user", "content": prompt}],
+                extra_body={"agent_reference": _agent_reference(settings, project_client)},
+            )
     finally:
         if hasattr(credential, "close"):
             credential.close()
@@ -193,44 +273,76 @@ def _retrieve_with_agent_name_responses(query: str, incident_type: str, max_resu
     return _as_playbook(getattr(response, "output_text", ""), incident_type, settings)[:max_results]
 
 
-def _retrieve_with_agent_name_api_key(query: str, incident_type: str, max_results: int) -> list[RetrievedPlaybook]:
+def _retrieve_with_agent_name_api_key(
+    query: str,
+    incident_type: str,
+    max_results: int,
+    target_language: str,
+    location_text: str | None,
+    response_entities: list[str] | None,
+    response_contacts: list[str] | None,
+) -> list[RetrievedPlaybook]:
     settings = get_settings()
     from openai import OpenAI
 
-    prompt = _live_prompt(query, incident_type, max_results)
-    agent_name = settings.azure_foundry_agent_name or settings.azure_foundry_agent_id
+    prompt = _live_prompt(
+        query,
+        incident_type,
+        max_results,
+        target_language,
+        location_text,
+        response_entities,
+        response_contacts,
+    )
     client = OpenAI(
         base_url=_project_openai_base_url(settings.azure_foundry_project_endpoint),
         api_key=settings.azure_foundry_api_key,
     )
-    conversation = client.conversations.create(
-        items=[{"type": "message", "role": "user", "content": prompt}]
-    )
     response = client.responses.create(
-        conversation=conversation.id,
-        extra_body={
-            "agent_reference": {
-                "name": agent_name,
-                "type": "agent_reference",
-            }
-        },
+        model=_response_model(settings),
+        input=[{"role": "user", "content": prompt}],
+        extra_body={"agent_reference": _agent_reference(settings)},
     )
     return _as_playbook(getattr(response, "output_text", ""), incident_type, settings)[:max_results]
 
 
-def _retrieve_live_with_foundry_agent(query: str, incident_type: str, max_results: int) -> list[RetrievedPlaybook]:
+def _retrieve_live_with_foundry_agent(
+    query: str,
+    incident_type: str,
+    max_results: int,
+    target_language: str,
+    location_text: str | None,
+    response_entities: list[str] | None,
+    response_contacts: list[str] | None,
+) -> list[RetrievedPlaybook]:
     settings = get_settings()
     errors: list[str] = []
 
-    if settings.azure_foundry_agent_id and settings.foundry_uses_entra:
+    if settings.azure_foundry_agent_id.startswith("asst") and settings.foundry_uses_entra:
         try:
-            return _retrieve_with_classic_agent_id(query, incident_type, max_results)
+            return _retrieve_with_classic_agent_id(
+                query,
+                incident_type,
+                max_results,
+                target_language,
+                location_text,
+                response_entities,
+                response_contacts,
+            )
         except Exception as exc:
             errors.append(f"classic_agent_id_path={type(exc).__name__}:{str(exc)[:180]}")
 
     if settings.azure_foundry_agent_name or settings.azure_foundry_agent_id:
         try:
-            return _retrieve_with_agent_name_responses(query, incident_type, max_results)
+            return _retrieve_with_agent_name_responses(
+                query,
+                incident_type,
+                max_results,
+                target_language,
+                location_text,
+                response_entities,
+                response_contacts,
+            )
         except Exception as exc:
             errors.append(f"responses_agent_reference_path={type(exc).__name__}:{str(exc)[:180]}")
 
@@ -259,7 +371,15 @@ def _foundry_config_hint(settings) -> RetrievedPlaybook:
     )
 
 
-def retrieve_from_foundry_iq(query: str, incident_type: str, max_results: int = 5) -> list[RetrievedPlaybook]:
+def retrieve_from_foundry_iq(
+    query: str,
+    incident_type: str,
+    max_results: int = 5,
+    target_language: str = "English",
+    location_text: str | None = None,
+    response_entities: list[str] | None = None,
+    response_contacts: list[str] | None = None,
+) -> list[RetrievedPlaybook]:
     """Retrieve grounded playbooks from Foundry IQ or local Markdown.
 
     In demo mode, or when credentials/SDKs are unavailable, this function uses
@@ -270,14 +390,26 @@ def retrieve_from_foundry_iq(query: str, incident_type: str, max_results: int = 
     if settings.live_foundry_enabled:
         try:
             print("FOUNDRY_AGENT_LIVE")
-            return _retrieve_live_with_foundry_agent(query, incident_type, max_results)
+            return _retrieve_live_with_foundry_agent(
+                query,
+                incident_type,
+                max_results,
+                target_language,
+                location_text,
+                response_entities,
+                response_contacts,
+            )
         except Exception as exc:
             hint = ""
             message = str(exc)
             if "OBO auth" in message and "API key" in message:
                 hint = " hint=Set AZURE_FOUNDRY_AUTH_MODE=entra and use Azure CLI login or service principal."
             elif "DefaultAzureCredential failed" in message or "ClientAuthenticationError" in message:
-                hint = " hint=Install Azure CLI and run az login, or set AZURE_TENANT_ID/AZURE_CLIENT_ID/AZURE_CLIENT_SECRET."
+                hint = (
+                    " hint=Install Azure CLI in this process PATH and run az login, set "
+                    "AZURE_TENANT_ID/AZURE_CLIENT_ID/AZURE_CLIENT_SECRET, or set "
+                    "AZURE_FOUNDRY_ALLOW_INTERACTIVE_LOGIN=true for local-only testing."
+                )
             print(f"LOCAL_DEMO_RETRIEVAL live_adapter_failed={type(exc).__name__}:{message[:220]}{hint}")
             return retrieve_local_playbooks(query, incident_type, max_results)
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from shutil import which
+
 from src.config import get_settings
 
 
@@ -13,7 +15,14 @@ def get_runtime_status() -> dict[str, object]:
     if not settings.azure_foundry_agent_id and not settings.azure_foundry_agent_name:
         missing_for_live.append("AZURE_FOUNDRY_AGENT_ID or AZURE_FOUNDRY_AGENT_NAME")
     if settings.live_foundry_enabled and settings.foundry_uses_entra and not settings.service_principal_configured:
-        missing_for_live.append("Entra credential: run az login or set service-principal variables")
+        if which("az"):
+            missing_for_live.append("Entra credential: run az login or set service-principal variables")
+        elif settings.azure_foundry_allow_interactive_login:
+            missing_for_live.append("Entra credential: complete the interactive browser login")
+        else:
+            missing_for_live.append(
+                "Entra credential: Azure CLI is not in PATH; set service-principal variables or allow interactive login"
+            )
 
     if settings.foundry_uses_api_key:
         auth_mode = "api_key"
@@ -37,9 +46,11 @@ def get_runtime_status() -> dict[str, object]:
         "endpoint_present": bool(settings.azure_foundry_project_endpoint),
         "agent_id_present": bool(settings.azure_foundry_agent_id),
         "agent_name_present": bool(settings.azure_foundry_agent_name),
+        "agent_version_present": bool(settings.azure_foundry_agent_version),
         "model_deployment_present": bool(settings.azure_foundry_model_deployment),
         "api_key_present": settings.foundry_api_key_configured,
         "auth_mode_setting": settings.azure_foundry_auth_mode,
+        "interactive_login_enabled": settings.azure_foundry_allow_interactive_login,
         "foundry_iq_knowledge_base_id_present": bool(settings.foundry_iq_knowledge_base_id),
         "azure_vision_configured": settings.azure_vision_configured,
         "azure_openai_vision_configured": settings.azure_openai_vision_configured,

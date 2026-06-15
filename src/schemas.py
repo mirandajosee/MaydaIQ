@@ -34,6 +34,7 @@ class VisualFinding(BaseModel):
 
 class VisualAnalysis(BaseModel):
     image_used: bool = False
+    scene_summary: str = ""
     visual_signals: list[str] = Field(default_factory=list)
     findings: list[VisualFinding] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
@@ -60,7 +61,9 @@ class RetrievedPlaybook(BaseModel):
 
 class ActionPlan(BaseModel):
     selected_mode: SelectedMode
+    ai_brief: str = ""
     situation_summary: str
+    contact_recommendations: list[str] = Field(default_factory=list)
     do_now: list[str] = Field(default_factory=list)
     avoid: list[str] = Field(default_factory=list)
     call_or_escalate: list[str] = Field(default_factory=list)

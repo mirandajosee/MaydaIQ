@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from src.agents.action_planner_agent import escalation_text
 from src.schemas import ActionPlan, RiskAssessment, SafetyReview, VisualAnalysis
+from src.tools.response_resources import escalation_text
 
 
 class SafetyCriticAgent:
@@ -29,7 +29,7 @@ class SafetyCriticAgent:
             revisions.append("Stripped confrontation, pursuit, or unsafe-entry guidance.")
 
         if risk.risk_level in {"HIGH", "CRITICAL"} and not self._contains_emergency_escalation(call_or_escalate):
-            call_or_escalate.append(escalation_text())
+            call_or_escalate.append(escalation_text(risk.incident_type))
             human_escalation_required = True
             issues.append("High severity required explicit emergency escalation.")
             revisions.append("Added local emergency services escalation.")

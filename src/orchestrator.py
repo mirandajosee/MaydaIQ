@@ -12,6 +12,7 @@ from src.agents.safety_critic_agent import SafetyCriticAgent
 from src.agents.translation_agent import TranslationAgent
 from src.agents.vision_agent import VisionAgent
 from src.schemas import AgentTraceStep, IncidentInput, MaydaIQResult
+from src.tools.response_resources import contact_guidance, recommended_entities
 from src.tools.report_payload import simulate_emergency_report
 
 
@@ -57,7 +58,10 @@ class MaydaIQOrchestrator:
         trace.append(
             AgentTraceStep(
                 agent="Vision",
-                summary=f"Returned privacy-safe hazard labels: {visual.visual_signals or ['none']}.",
+                summary=(
+                    f"Returned privacy-safe hazard labels: {visual.visual_signals or ['none']}."
+                    + (f" Scene: {visual.scene_summary[:70]}" if visual.scene_summary else "")
+                )[:170],
             )
         )
 
@@ -69,8 +73,24 @@ class MaydaIQOrchestrator:
             )
         )
 
-        query = " ".join([incident.text, " ".join(visual.visual_signals), incident.location_text or ""])
-        playbooks = self.foundry_iq_agent.run(query=query, incident_type=risk.incident_type)
+        response_entities = recommended_entities(risk.incident_type)
+        response_contacts = contact_guidance(risk.incident_type, incident.location_text)
+        query = " ".join(
+            [
+                incident.text,
+                visual.scene_summary,
+                " ".join(visual.visual_signals),
+                incident.location_text or "",
+            ]
+        )
+        playbooks = self.foundry_iq_agent.run(
+            query=query,
+            incident_type=risk.incident_type,
+            target_language=incident.language,
+            location_text=incident.location_text,
+            response_entities=response_entities,
+            response_contacts=response_contacts,
+        )
         trace.append(
             AgentTraceStep(
                 agent="Foundry IQ Retrieval",

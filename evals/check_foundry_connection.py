@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -14,6 +15,10 @@ from src.tools.runtime_status import get_runtime_status
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--strict-live", action="store_true", help="Fail if the adapter falls back to local retrieval.")
+    args = parser.parse_args()
+
     status = get_runtime_status()
     print(f"runtime_mode={status['mode']}")
     print(f"auth_mode={status['auth_mode']}")
@@ -34,7 +39,9 @@ def main() -> None:
         print(f"playbook_{index}_title={playbook.title}")
         print(f"playbook_{index}_snippet={snippet}")
 
+    if args.strict_live and (not playbooks or not playbooks[0].source_id.startswith("foundry")):
+        raise SystemExit("strict_live_failed=Foundry adapter fell back to local retrieval.")
+
 
 if __name__ == "__main__":
     main()
-

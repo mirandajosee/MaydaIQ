@@ -7,18 +7,7 @@ from uuid import uuid4
 
 from src.schemas import ActionPlan, IncidentInput, ResponderPacket, RiskAssessment, SafetyReview, VisualAnalysis
 from src.tools.privacy import redact_private_details
-
-
-RESOURCE_MAP: dict[str, list[str]] = {
-    "flood": ["rescue", "utility crew", "road crew", "local emergency management"],
-    "fire_smoke": ["fire service", "medical", "building management", "local emergency management"],
-    "traffic_accident": ["medical", "traffic control", "road crew", "law enforcement"],
-    "personal_safety_robbery": ["law enforcement", "victim support", "nearby safe site"],
-    "electrical_hazard": ["utility crew", "fire service", "road crew"],
-    "environmental_water_quality": ["environmental agency", "public works", "community science coordinator"],
-    "environmental_air_quality": ["environmental health", "air quality agency", "community science coordinator"],
-    "general_safety": ["local emergency management", "human reviewer"],
-}
+from src.tools.response_resources import recommended_entities
 
 
 class ResponderPacketAgent:
@@ -34,7 +23,7 @@ class ResponderPacketAgent:
     ) -> ResponderPacket:
         redacted_report, redactions = redact_private_details(incident.text)
         hazards = sorted(set(visual_analysis.visual_signals + risk.urgency_signals))
-        resources = RESOURCE_MAP.get(risk.incident_type, RESOURCE_MAP["general_safety"])
+        resources = recommended_entities(risk.incident_type)
         incident_id = f"maydaiq-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{uuid4().hex[:8]}"
 
         return ResponderPacket(
@@ -54,4 +43,3 @@ class ResponderPacketAgent:
             privacy_redactions=redactions,
             simulated_only=True,
         )
-

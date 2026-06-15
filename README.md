@@ -6,6 +6,8 @@ MaydaIQ converts panic into safe action: your first 60 seconds, your next 60 min
 
 MaydaIQ is a multimodal, multi-agent crisis assistant that turns a text report plus an optional image into immediate safety guidance, grounded response plans, and a responder-ready incident packet. It is designed for Microsoft Foundry + Foundry IQ integration, but it also runs fully in local demo mode with deterministic fallback logic and Markdown knowledge files.
 
+Demo Video: https://youtu.be/TtZe2kexU4I
+
 ## Why This Is Not A GPT Wrapper
 
 MaydaIQ is an orchestrated reasoning system:
