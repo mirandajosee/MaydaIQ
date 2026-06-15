@@ -185,40 +185,6 @@ Recommended indexing fields:
 
 ---
 
-## Deployment Notes
-
-### Best current deployment targets
-
-Because MaydaIQ is currently a **Streamlit** app, the easiest deployment targets are:
-
-- Streamlit Community Cloud,
-- Render,
-- Railway,
-- Fly.io,
-- Azure App Service / Azure Container Apps.
-
-These platforms can run a long-lived Streamlit web process with minimal refactoring.
-
-### Vercel status
-
-This repository is **not Vercel-ready as-is** because `app.py` is a Streamlit UI, not an ASGI/WSGI app or serverless function entrypoint.
-
-To deploy on Vercel, there are two practical paths:
-
-1. **Recommended Vercel architecture**
-   - Build a Next.js / React frontend.
-   - Move MaydaIQ reasoning into a Python API endpoint such as FastAPI under `/api`.
-   - Reuse `src/orchestrator.py`, schemas, retrieval, and tools.
-   - Set Azure/Foundry credentials as Vercel environment variables.
-
-2. **Demo-only shortcut**
-   - Keep this repo deployed elsewhere as Streamlit.
-   - Use Vercel only for a landing page that links to the running demo and video.
-
-For a public hosted demo with live Foundry access, users do not need Microsoft accounts. The server should authenticate with environment variables or fall back to local demo mode.
-
----
-
 ## Safety Model
 
 MaydaIQ is conservative by design:
