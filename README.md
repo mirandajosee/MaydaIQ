@@ -1,22 +1,89 @@
-# MaydaIQ
+<p align="center">
+  <img src="assets/MaydaIQ.png" alt="MaydaIQ logo" width="135" />
+</p>
 
-**Track:** Microsoft Agents League 2026 - Reasoning Agents
+<h1 align="center">🚨 MaydaIQ</h1>
 
-MaydaIQ converts panic into safe action: your first 60 seconds, your next 60 minutes, and your community's next 60 days.
+<p align="center">
+  <strong>Multimodal crisis intelligence for safer communities.</strong><br />
+  Your first 60 seconds, your next 60 minutes, and your community's next 60 days.
+</p>
 
-MaydaIQ is a multimodal, multi-agent crisis assistant that turns a text report plus an optional image into immediate safety guidance, grounded response plans, and a responder-ready incident packet. It is designed for Microsoft Foundry + Foundry IQ integration, but it also runs fully in local demo mode with deterministic fallback logic and Markdown knowledge files.
+<p align="center">
+  <a href="https://youtu.be/TtZe2kexU4I"><strong>▶ Watch Demo Video</strong></a>
+  ·
+  <strong>Microsoft Agents League 2026</strong>
+  ·
+  <strong>Reasoning Agents Track</strong>
+</p>
 
-Demo Video: https://youtu.be/TtZe2kexU4I
+---
 
-## Why This Is Not A GPT Wrapper
+## Why MaydaIQ Matters
 
-MaydaIQ is an orchestrated reasoning system:
+Would you trust your life to a generic chatbot?
 
-- Separate agents handle intake, privacy-safe vision labels, deterministic risk scoring, Foundry IQ retrieval, planning, safety criticism, responder packet generation, community memory, and translation fallback.
-- Every output validates through Pydantic schemas.
-- High severity or low confidence forces `human_escalation_required=true`.
-- Calm Mode requires grounded citations from Foundry IQ or the local knowledge pack.
-- The app never performs real dispatch. `simulate_emergency_report()` is simulated only.
+Probably not blindly. In a real crisis, people do not need a long, vague answer. They need immediate, concrete, safety-first actions, and responders need structured information they can actually use.
+
+**MaydaIQ** is a multimodal, multi-agent crisis assistant that turns a text report plus an optional image into:
+
+- immediate citizen-facing safety guidance,
+- grounded calm-mode response plans,
+- a responder-ready incident packet,
+- anonymized community resilience data.
+
+It is designed for **Microsoft Foundry + Foundry IQ**, while remaining fully runnable in local demo mode with deterministic fallback logic and Markdown safety playbooks.
+
+---
+
+## Judge-Friendly Summary
+
+| Area | What MaydaIQ demonstrates |
+|---|---|
+| **Track fit** | Reasoning agent for complex crisis-response decisions. |
+| **Microsoft IQ** | Foundry IQ / attached knowledge documents ground crisis playbooks and safety guidance. |
+| **Multi-step reasoning** | Intake → vision labels → risk triage → retrieval → planning → safety review → responder packet. |
+| **Reliability & safety** | Conservative escalation, confidence gates, Pydantic schemas, no real dispatch, privacy redaction. |
+| **Multimodal value** | Text plus optional image signals are converted into structured hazard context. |
+| **Real-world potential** | Civic incident intake, emergency preparedness, NGO coordination, environmental citizen science. |
+
+---
+
+## What It Does
+
+MaydaIQ supports three interaction modes:
+
+- **Alert Mode** — short, urgent, safety-first guidance for situations happening now.
+- **Calm Mode** — more detailed preparedness, reporting, or post-incident analysis with citations and uncertainty notes.
+- **Auto Mode** — automatically switches behavior based on risk level, urgency keywords, and visual hazard labels.
+
+Example scenarios:
+
+- flooded street with possible electrical hazard,
+- smoke or fire near a building,
+- traffic accident with a possible injured person,
+- robbery or personal safety threat,
+- suspicious water pollution / benthic bioindicator report,
+- air-quality / lichen citizen-science observation.
+
+---
+
+## Why This Is Not a GPT Wrapper
+
+MaydaIQ is an orchestrated reasoning system, not a single prompt around a chatbot.
+
+- **IntakeAgent** normalizes the incident report, language, location, and urgency.
+- **VisionAgent** extracts privacy-safe visual hazard labels from uploaded images or demo scenarios.
+- **RiskTriageAgent** applies deterministic risk scoring and selects Alert or Calm behavior.
+- **FoundryIQAgent** retrieves grounded crisis guidance from Microsoft Foundry / Foundry IQ or local playbooks.
+- **ActionPlannerAgent** creates citizen-facing actions according to the selected mode.
+- **SafetyCriticAgent** blocks risky advice, overconfidence, unsafe escalation gaps, or privacy issues.
+- **ResponderPacketAgent** generates structured JSON for responders.
+- **CommunityMemoryAgent** stores anonymized hazard metadata for resilience analysis.
+
+Every structured output validates through **Pydantic schemas**. High severity or low confidence forces `human_escalation_required=true`. The app never performs real dispatch; `simulate_emergency_report()` is explicitly simulated.
+
+---
 
 ## Architecture
 
@@ -33,48 +100,66 @@ flowchart LR
     H --> J["CommunityMemoryAgent"]
 ```
 
-## Modes
-
-- **Alert Mode:** Max four short bullets, focused on physical safety and emergency escalation.
-- **Calm Mode:** Preparedness, analysis, or post-incident planning with citations, checklist, unknowns, confidence, and next steps.
-- **Auto Mode:** Deterministically chooses Alert or Calm based on severity, urgency keywords, and image hazard labels.
+---
 
 ## Run Locally
 
+The app runs without Azure credentials in local demo mode.
+
 ```bash
 python -m venv .venv
+
+# Windows
 .venv\Scripts\activate
+
+# macOS / Linux
+source .venv/bin/activate
+
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
-The default `.env.example` uses `DEMO_MODE=true`, so no Azure credentials are required.
+By default, `.env.example` can run in demo mode with deterministic fallback logic and Markdown knowledge files.
+
+---
 
 ## Connect Microsoft Foundry + Foundry IQ
 
 1. Copy `.env.example` to `.env`.
-2. For an existing Foundry agent with documents already attached, fill the minimum live values:
-   - `AZURE_FOUNDRY_PROJECT_ENDPOINT`
-   - `AZURE_FOUNDRY_API_KEY`
-   - `AZURE_FOUNDRY_AGENT_ID`
-3. Set `DEMO_MODE=false`.
-4. If you do not use an API key, authenticate with `az login`, or fill the service-principal variables.
-5. Install dependencies with `pip install -r requirements.txt`.
-6. Run the app. The retrieval adapter logs `FOUNDRY_AGENT_LIVE` when it attempts live Foundry agent retrieval, and `LOCAL_DEMO_RETRIEVAL` when it falls back.
+2. Set live mode:
 
-Optional variables:
+```env
+DEMO_MODE=false
+```
 
-- `AZURE_FOUNDRY_MODEL_DEPLOYMENT`: useful for creating agents/direct model calls, not required for an existing agent call.
-- `AZURE_FOUNDRY_AGENT_NAME`: supported for newer agent-reference flows.
-- `FOUNDRY_IQ_KNOWLEDGE_BASE_ID` and `FOUNDRY_IQ_CONNECTION_NAME`: not required when your documents are already attached to the agent.
+3. For an existing Foundry agent with documents already attached, fill the minimum live values:
 
-See [Azure Foundry live testing](docs/azure_foundry_testing.md) for the practical setup checklist.
+```env
+AZURE_FOUNDRY_PROJECT_ENDPOINT=
+AZURE_FOUNDRY_AUTH_MODE=entra
+AZURE_FOUNDRY_TOKEN_SCOPE=https://ai.azure.com/.default
+AZURE_FOUNDRY_AGENT_ID=
+AZURE_FOUNDRY_AGENT_VERSION=
+AZURE_FOUNDRY_MODEL_DEPLOYMENT=
+```
 
-People using the public demo do not need a Microsoft account. MaydaIQ authenticates server-side with `.env` credentials or runs in local fallback mode.
+4. Authenticate locally with `az login`, or configure service-principal credentials for hosted deployment:
 
-## Index The Knowledge Pack Into Foundry IQ
+```env
+AZURE_TENANT_ID=
+AZURE_CLIENT_ID=
+AZURE_CLIENT_SECRET=
+```
 
-Use the Markdown files in `data/knowledge_pack/` as the seed corpus:
+5. Run the app. The retrieval adapter logs `FOUNDRY_AGENT_LIVE` when it attempts live Foundry retrieval, and `LOCAL_DEMO_RETRIEVAL` when it falls back.
+
+See [`docs/azure_foundry_testing.md`](docs/azure_foundry_testing.md) for the practical setup checklist.
+
+---
+
+## Knowledge Pack
+
+The Foundry IQ / local fallback knowledge pack lives in `data/knowledge_pack/`:
 
 - `emergency_flood.md`
 - `emergency_fire_smoke.md`
@@ -98,14 +183,41 @@ Recommended indexing fields:
 - `responder_packet_fields`
 - `safety_notes`
 
-## Demo Scenarios
+---
 
-- Flooded street with possible electrical hazard.
-- Smoke/fire near building.
-- Traffic accident with injured person.
-- Robbery / personal safety threat.
-- Suspicious water pollution / benthic bioindicator report.
-- Air quality / lichen citizen science report.
+## Deployment Notes
+
+### Best current deployment targets
+
+Because MaydaIQ is currently a **Streamlit** app, the easiest deployment targets are:
+
+- Streamlit Community Cloud,
+- Render,
+- Railway,
+- Fly.io,
+- Azure App Service / Azure Container Apps.
+
+These platforms can run a long-lived Streamlit web process with minimal refactoring.
+
+### Vercel status
+
+This repository is **not Vercel-ready as-is** because `app.py` is a Streamlit UI, not an ASGI/WSGI app or serverless function entrypoint.
+
+To deploy on Vercel, there are two practical paths:
+
+1. **Recommended Vercel architecture**
+   - Build a Next.js / React frontend.
+   - Move MaydaIQ reasoning into a Python API endpoint such as FastAPI under `/api`.
+   - Reuse `src/orchestrator.py`, schemas, retrieval, and tools.
+   - Set Azure/Foundry credentials as Vercel environment variables.
+
+2. **Demo-only shortcut**
+   - Keep this repo deployed elsewhere as Streamlit.
+   - Use Vercel only for a landing page that links to the running demo and video.
+
+For a public hosted demo with live Foundry access, users do not need Microsoft accounts. The server should authenticate with environment variables or fall back to local demo mode.
+
+---
 
 ## Safety Model
 
@@ -116,11 +228,27 @@ MaydaIQ is conservative by design:
 - It never identifies people, faces, license plates, suspects, or private individuals.
 - It avoids confrontation, pursuit, vigilantism, unsafe re-entry, and invasive medical instructions.
 - It includes confidence and uncertainty notes in every structured result.
+- Low confidence or high severity triggers human escalation.
+
+---
 
 ## Privacy Model
 
 Community memory stores only anonymized hazard labels, approximate location text, risk level, and redaction notes. Raw images are not stored. Responder packets include `simulated_only=true`.
 
+---
+
+## Future Potential
+
+MaydaIQ can evolve into:
+
+- a municipal incident-intake assistant,
+- a preparedness and simulation tool for civil defense teams,
+- an NGO coordination assistant during crises,
+- an environmental citizen-science reporting platform,
+- a safety-first agentic AI pattern for high-stakes public-service workflows.
+
+---
 
 ## Disclaimer
 
