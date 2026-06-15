@@ -119,17 +119,6 @@ MaydaIQ is conservative by design:
 
 Community memory stores only anonymized hazard labels, approximate location text, risk level, and redaction notes. Raw images are not stored. Responder packets include `simulated_only=true`.
 
-## Judging Rubric Alignment
-
-| Rubric Area | MaydaIQ Alignment |
-| --- | --- |
-| Accuracy & Relevance | Grounded playbooks from Foundry IQ or local citations, schema-validated packets, deterministic scoring. |
-| Reasoning & Multi-step Thinking | Intake -> Vision -> Triage -> Retrieval -> Planner -> Safety Critic -> Packet pipeline with concise agent trace. |
-| Creativity & Originality | Bridges urgent crisis guidance with long-horizon community preparedness and citizen-science environmental reporting. |
-| UX & Presentation | Streamlit demo with mode selector, language selector, sample scenarios, risk badges, alert card, calm plan, trace, and JSON download. |
-| Reliability & Safety | Demo mode works offline; safety critic enforces escalation, privacy, and dangerous-instruction guardrails. |
-| Community Vote | Clear pitch: first 60 seconds, next 60 minutes, next 60 days. |
-
 
 ## Disclaimer
 
