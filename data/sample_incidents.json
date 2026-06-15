@@ -1,0 +1,39 @@
+[
+  {
+    "id": "flood_electrical",
+    "label": "Flooded street with possible electrical hazard",
+    "text": "A street is flooded after heavy rain. Water is moving fast near a utility pole and people are unsure whether a wire is down.",
+    "expected_incident_type": "flood"
+  },
+  {
+    "id": "fire_smoke",
+    "label": "Smoke/fire near building",
+    "text": "There is thick smoke coming from the side of an apartment building and people may still be inside.",
+    "expected_incident_type": "fire_smoke"
+  },
+  {
+    "id": "traffic_injury",
+    "label": "Traffic accident with injured person",
+    "text": "Two cars crashed at an intersection. One person may be injured and traffic is blocked.",
+    "expected_incident_type": "traffic_accident"
+  },
+  {
+    "id": "robbery_threat",
+    "label": "Robbery / personal safety threat",
+    "text": "Someone nearby says they were robbed and the person who threatened them may still be close.",
+    "expected_incident_type": "personal_safety_robbery"
+  },
+  {
+    "id": "water_pollution",
+    "label": "Suspicious water pollution / benthic bioindicator report",
+    "text": "Volunteers found cloudy water, possible algae, and very few benthic macroinvertebrates in a neighborhood creek.",
+    "expected_incident_type": "environmental_water_quality"
+  },
+  {
+    "id": "air_quality_lichen",
+    "label": "Air quality / lichen citizen science report",
+    "text": "A citizen science group is comparing lichen growth near a busy road and a park to screen for possible air quality differences.",
+    "expected_incident_type": "environmental_air_quality"
+  }
+]
+

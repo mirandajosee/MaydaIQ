@@ -1,0 +1,12 @@
+streamlit>=1.35
+pydantic>=2.7
+python-dotenv>=1.0
+Pillow>=10.0
+pytest>=8.0
+
+# Live Microsoft Foundry / Azure agent adapters.
+azure-identity>=1.16
+azure-ai-projects>=2.0.0b4
+
+# Optional Azure Vision / multimodal adapter.
+# azure-ai-vision-imageanalysis>=1.0.0b3
