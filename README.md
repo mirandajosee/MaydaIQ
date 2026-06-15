@@ -11,6 +11,7 @@
 
 <p align="center">
   <a href="https://youtu.be/TtZe2kexU4I"><strong>▶ Watch Demo Video</strong></a>
+  <a href="https://maydaiq-afdbv2ezxujuz6gex2wsx8.streamlit.app/?embed_options=light_theme"><strong>▶ Play Demo (Without Foundry)</strong></a>
   ·
   <strong>Microsoft Agents League 2026</strong>
   ·
